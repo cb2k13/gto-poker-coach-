@@ -66,4 +66,15 @@ textarea{resize:vertical}
 .bar{display:flex;height:22px;border-radius:6px;overflow:hidden;margin:12px 0 4px}
 .tips{margin:12px 0 0;padding-left:18px}
 .tips li{margin-bottom:4px}
-
+.cell.cc{flex-direction:column;line-height:1.1;font-size:clamp(.45rem,2vw,.7rem)}
+.cell.cc small{font-weight:400;font-size:.85em;opacity:.9}
+.cell.cut{box-shadow:inset 0 0 0 2px var(--accent)}
+.deck{display:grid;grid-template-columns:repeat(13,1fr);gap:2px;margin:8px 0 12px}
+.dk{display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.05;aspect-ratio:3/4;font:inherit;font-size:clamp(.5rem,2.2vw,.8rem);font-weight:700;border:1px solid var(--line);background:var(--fold);color:var(--ink);border-radius:4px;cursor:pointer;padding:0}
+.dk.r{color:#f0605d}
+.dk.h{background:var(--accent);border-color:var(--accent);color:#fff}
+.dk.b{background:var(--ink);border-color:var(--ink);color:var(--bg)}
+.dk.x{opacity:.3;cursor:default}
+.gl .term{border-top:1px solid var(--line);padding:10px 0}
+.gl .term b{display:block}
+.gl .term p{margin:2px 0 0;color:var(--mute)}

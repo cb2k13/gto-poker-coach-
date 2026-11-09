@@ -158,7 +158,7 @@ function Postflop({init,onSave}){
   h('p',{className:'note'},'Approximate solver trends for single-raised pots at 100bb, such as a CO open called by the BTN (raiser in position) or the reverse. Real frequencies depend on the exact board, hand and positions, so use these as a starting point.'));
 }
 
-const TAGS={ranges:'Open ranges',tree:'3-bet / 4-bet',post:'Postflop'};
+const TAGS={ranges:'Open ranges',tree:'3-bet / 4-bet',post:'Postflop',combo:'Combos'};
 function Saved({saved,setSaved,open}){
  const upd=(id,note)=>setSaved(saved.map(s=>s.id===id?{...s,note}:s));
  const del=id=>setSaved(saved.filter(s=>s.id!==id));
@@ -170,6 +170,94 @@ function Saved({saved,setSaved,open}){
   h('p',{className:'note'},'Saved in this browser only. Clearing site data removes them.'));
 }
 
+const SUITS=['s','h','d','c'],SYM={s:'\u2660',h:'\u2665',d:'\u2666',c:'\u2663'},fmt=k=>k[0]+SYM[k[1]];
+function comboList(x){const a=x[0],b=x[1],t=x[2],o=[];
+ if(!t){for(let i=0;i<4;i++)for(let j=i+1;j<4;j++)o.push([a+SUITS[i],a+SUITS[j]]);}
+ else if(t==='s'){SUITS.forEach(s=>o.push([a+s,b+s]));}
+ else{SUITS.forEach(s=>SUITS.forEach(u=>{if(s!==u)o.push([a+s,b+u]);}));}
+ return o;}
+const COMBOS=Object.fromEntries(ALL.map(x=>[x,comboList(x)]));
+
+function Combos({init,onSave}){
+ const [hero,setHero]=useState(init?init.hero:[]),[board,setBoard]=useState(init?init.board:[]),[grp,setGrp]=useState('hero');
+ const [pos,setPos]=useState(init?init.pos:'UTG'),[st,setSt]=useState(init?init.st:100);
+ const set=pos==='All hands'?new Set(ALL):RANGES[st][pos];
+ const info=useMemo(()=>{const dead=new Set(hero.concat(board)),o={};ALL.forEach(x=>{o[x]=[COMBOS[x].length,COMBOS[x].filter(cc=>!cc.some(k=>dead.has(k))).length];});return o;},[hero,board]);
+ const tog=k=>{
+  if(grp==='hero')setHero(hero.includes(k)?hero.filter(x=>x!==k):board.includes(k)||hero.length>=2?hero:hero.concat(k));
+  else setBoard(board.includes(k)?board.filter(x=>x!==k):hero.includes(k)||board.length>=5?board:board.concat(k));};
+ let full=0,rem=0;const hit=[];
+ set.forEach(x=>{const [f,r]=info[x];full+=f;rem+=r;if(r<f)hit.push([x,f,r]);});
+ hit.sort((a,b)=>(b[1]-b[2])-(a[1]-a[2]));
+ const chips=(a,v,fn)=>h('div',{className:'pos'},a.map(x=>h('button',{key:x,className:'chipb','aria-pressed':x===v,onClick:()=>fn(x)},typeof x==='number'?x+'bb':x)));
+ const tiles=(a,e)=>a.length?a.map(k=>h('span',{key:k,className:'pc'+(/[hd]/.test(k[1])?' r':'')},fmt(k))):h('span',{className:'lbl'},e);
+ return h('div',{className:'panel'},
+  h('div',{className:'lbl'},'Cards to remove'),
+  h('div',{className:'pos'},[['hero','Your hand (2)'],['board','Board (up to 5)']].map(([k,l])=>h('button',{key:k,className:'chipb','aria-pressed':grp===k,onClick:()=>setGrp(k)},l)),
+   h('button',{className:'chipb',onClick:()=>{setHero([]);setBoard([]);}},'Clear')),
+  h('div',{className:'deck'},SUITS.map(s=>R.map(r=>{const k=r+s,inH=hero.includes(k),inB=board.includes(k),oth=grp==='hero'?inB:inH;
+   return h('button',{key:k,className:'dk'+(/[hd]/.test(s)?' r':'')+(inH?' h':inB?' b':'')+(oth?' x':''),'aria-pressed':inH||inB,'aria-label':r+' of '+s,disabled:oth,onClick:()=>tog(k)},h('span',null,r),h('span',null,SYM[s]));}))),
+  h('div',{className:'boards'},h('div',{className:'board'},tiles(hero,'No hand selected')),h('div',{className:'board'},tiles(board,'No board'))),
+  h('div',{className:'lbl'},'Opponent range'),chips(['All hands'].concat(POS),pos,setPos),chips(STACKS,st,setSt),
+  h('div',{className:'grid'},ALL.map(x=>{const [f,r]=info[x],inR=set.has(x);
+   return h('div',{key:x,className:'cell cc'+(inR?(r?' in':' in dim'):'')+(inR&&r<f?' cut':'')},x,inR?h('small',null,r+'/'+f):null);})),
+  h('div',{className:'legend'},[['#c8302f','In range (combos left / total)'],['var(--fold)','Not in range']].map(([c,l])=>h('span',{key:l},h('i',{style:{background:c}}),l)),h('span',null,h('i',{style:{boxShadow:'inset 0 0 0 2px var(--accent)'}}),'Reduced by blockers')),
+  h('div',{className:'stats'},
+   h('div',null,h('div',{className:'big'},rem),h('div',{className:'lbl'},'combos left (of '+full+')')),
+   h('div',null,h('div',{className:'big'},full?((full-rem)/full*100).toFixed(1)+'%':'0%'),h('div',{className:'lbl'},'removed by your cards'))),
+  hit.length?h('p',{className:'note'},'Biggest changes: '+hit.slice(0,6).map(([x,f,r])=>x+' '+f+'\u2192'+r).join(', ')+'.'):null,
+  h(SaveBar,{onSave:n=>onSave({type:'combo',title:'Combos: '+(hero.map(fmt).join(' ')||'no hand')+(board.length?' on '+board.map(fmt).join(' '):'')+' vs '+pos,params:{hero,board,pos,st},note:n})}),
+  h('p',{className:'note'},'A pair has 6 combos, a suited hand 4 and an offsuit hand 12. Cards you hold or see on the board cannot be in your opponent\u2019s hand. For example, holding one ace turns AA from 6 combos into 3, AKs from 4 into 3 and AKo from 12 into 9.'));
+}
+
+const GLOSS=[
+["GTO (game theory optimal)","A strategy that cannot be exploited. In a two-player zero-sum game, playing it guarantees you at least break-even against any opponent strategy, whatever they do."],
+["Nash equilibrium","A set of strategies, one for each player, where no one can improve their expected value by changing only their own strategy. Solvers compute approximations of it, and GTO play is built on it."],
+["Exploitative play","Deliberately deviating from GTO to take advantage of a specific opponent\u2019s mistakes, such as bluffing more against a player who folds too often. It gains EV but can itself be exploited."],
+["EV (expected value)","The average result of a decision if you could repeat it many times: the sum of each outcome multiplied by its probability. A +EV play wins money on average and a \u2212EV play loses it."],
+["Range","The full set of hands a player could hold in a given spot, based on how they have played so far. GTO thinking assigns ranges to players, not single hands."],
+["Combos","The individual two-card combinations that make up a hand type. A pocket pair has 6 combos, a suited hand 4 and an offsuit hand 12, and there are 1,326 starting combos in total."],
+["Blockers","Cards in your hand (or on the board) that make certain opponent holdings less likely. Holding an ace removes combos of AA and AK from your opponent\u2019s range."],
+["Equity","Your share of the pot on average if all remaining cards were dealt with no further betting. A hand with 60% equity wins the pot 60% of the time, counting ties as shared."],
+["Equity realization","How much of your raw equity you actually collect. Position, hand playability and stack depth change it: suited connectors in position realize more than weak offsuit hands out of position."],
+["Pot odds","The price a call offers. Equity you need = call \u00f7 (pot after your call). Calling 50 into a pot of 100 plus a 50 bet needs 50 \u00f7 200 = 25% equity."],
+["Implied odds","Extra money you expect to win on later streets when you hit your hand. They let you call with less equity than pot odds alone require, mostly with deep stacks and hidden hands like sets."],
+["MDF (minimum defense frequency)","The share of your range you must continue with against a bet so the bettor\u2019s pure bluffs cannot profit. MDF = pot \u00f7 (pot + bet), so versus a half-pot bet you defend about 67%."],
+["Alpha","The fold frequency a pure bluff needs to break even: bet \u00f7 (pot + bet). It equals 1 \u2212 MDF. A half-pot bluff needs the opponent to fold 33% of the time."],
+["Polarized range","A betting range made of very strong hands and bluffs, with few medium-strength hands. Large bets and overbets usually come from polarized ranges."],
+["Merged range","A range of strong and medium-strength hands with few bluffs, also called linear or condensed. It usually bets smaller and more often, because medium hands want to get value from worse."],
+["Range advantage","Your range has more equity on average than your opponent\u2019s on a given board. The player with it can bet more often, usually with smaller sizes."],
+["Nut advantage","You hold a larger share of the strongest possible hands. It supports big bets and overbets, even if the opponent has more medium-strength hands."],
+["Mixed strategy","Taking different actions with the same hand at set frequencies, such as raising 60% and calling 40%. Solvers mix so opponents cannot guess what you hold."],
+["Indifference","When two actions have the same EV for a hand, so you are indifferent between them. A mixed strategy is only optimal with hands that are indifferent."],
+["Balance","Having the right proportion of value hands to bluffs in a range so the opponent gains nothing by always calling or always folding."],
+["Value bet","A bet made because you expect to be called by worse hands."],
+["Bluff","A bet or raise made with a hand that expects to win mostly because the opponent folds. A semi-bluff is a bluff with a draw that can still improve to the best hand."],
+["Bluff catcher","A hand that beats only bluffs, such as a medium pair facing a polarized bet. Whether to call depends on the pot odds and the number of bluffs in the bettor\u2019s range."],
+["C-bet (continuation bet)","A bet on the flop by the player who raised preflop. How often and how big depends on the board texture and on who has the range advantage."],
+["Board texture","The character of the community cards, such as dry, wet, paired or monotone. It decides which ranges connect and how often and how big to bet."],
+["RFI (raise first in)","Opening the pot with a raise when everyone before you has folded. Opening ranges grow wider as you move closer to the button."],
+["3-bet, 4-bet, 5-bet","The raises that follow the big blind: the first raise is the open, a re-raise is the 3-bet, then the 4-bet and 5-bet. A 5-bet is often an all-in at 100bb."],
+["Squeeze","A 3-bet made after one player opens and at least one other calls. Callers have capped ranges, so squeezes are often more profitable than a plain 3-bet."],
+["Position (IP / OOP)","Acting after the opponent is in position (IP) and acting before them is out of position (OOP). Being IP gives you more information and better equity realization."],
+["Check-raise","Checking and then raising after the opponent bets. A balanced check-raise range combines strong hands with draws and other bluffs."],
+["Overbet","A bet larger than the pot. Overbets work best with a nut advantage and a polarized range."],
+["Geometric sizing","Betting the same fraction of the pot on each street so that the stacks are all in by the river. It is a common plan with strong or polarized ranges."],
+["SPR (stack-to-pot ratio)","The effective stack divided by the pot on the flop. Low SPR means committing with top pair is natural, and high SPR makes drawing hands and nutty hands more valuable."],
+["Frequency","How often a strategy takes an action in a spot, such as betting 33% of the time. Solver charts show frequencies for each hand, not just a yes or no."],
+["Solver","Software that computes near-GTO strategies for a defined spot, usually with counterfactual regret minimization. Solvers need the ranges, bet sizes and stack depth as inputs."],
+["ICM (Independent Chip Model)","A method that turns tournament chip stacks into estimated prize-pool equity. Near pay jumps, losing chips costs more than winning chips earn, so ranges tighten."],
+["Push/fold","Short-stack play where the only options preflop are going all-in or folding. It applies at low stack depths, around 10bb or less, and is solved with Nash equilibrium charts."]
+].sort((a,b)=>a[0].localeCompare(b[0]));
+function Glossary(){
+ const [q,setQ]=useState(''),l=q.trim().toLowerCase();
+ const list=GLOSS.filter(([t,d])=>!l||t.toLowerCase().includes(l)||d.toLowerCase().includes(l));
+ return h('div',{className:'panel gl'},
+  h('input',{type:'text',placeholder:'Search terms','aria-label':'Search glossary',value:q,onChange:e=>setQ(e.target.value)}),
+  h('div',{className:'lbl',style:{margin:'8px 0'}},list.length+' of '+GLOSS.length+' terms'),
+  list.length?list.map(([t,d])=>h('div',{key:t,className:'term'},h('b',null,t),h('p',null,d))):h('p',{className:'note'},'No terms match your search.'));
+}
+
 function App(){
  const [tab,setTab]=useState('ranges'),[load,setLoad]=useState(null);
  const [saved,setSaved]=useState(()=>{try{return JSON.parse(localStorage.getItem('gto-saved')||'[]');}catch(e){return [];}});
@@ -177,12 +265,12 @@ function App(){
  const save=s=>setSaved([{...s,id:Date.now()+Math.random().toString(36).slice(2,6)},...saved]);
  const open=s=>{setLoad(s);setTab(s.type);};
  const init=load&&load.type===tab?load.params:null,key=tab+(init?load.id:''),pr={key,init,onSave:save};
- const T=[['ranges','Open ranges'],['tree','3-bet / 4-bet'],['post','Postflop'],['math','Bet math'],['quiz','Practice'],['saved','Saved ('+saved.length+')']];
+ const T=[['ranges','Open ranges'],['tree','3-bet / 4-bet'],['post','Postflop'],['combo','Combos'],['math','Bet math'],['quiz','Practice'],['gloss','Glossary'],['saved','Saved ('+saved.length+')']];
  return h('div',{className:'wrap'},
   h('h1',null,'GTO Poker ',h('span',null,'Coach')),
   h('p',{className:'sub'},'Study opening ranges, work out pot odds and defense frequencies, then test yourself.'),
   h('div',{className:'tabs',role:'tablist'},T.map(([k,l])=>h('button',{key:k,role:'tab',className:'tab','aria-selected':tab===k,onClick:()=>setTab(k)},l))),
-  tab==='ranges'?h(Ranges,pr):tab==='tree'?h(Tree,pr):tab==='post'?h(Postflop,pr):tab==='math'?h(Calc):tab==='quiz'?h(Quiz):h(Saved,{saved,setSaved,open}));
+  tab==='ranges'?h(Ranges,pr):tab==='tree'?h(Tree,pr):tab==='post'?h(Postflop,pr):tab==='combo'?h(Combos,pr):tab==='math'?h(Calc):tab==='quiz'?h(Quiz):tab==='gloss'?h(Glossary):h(Saved,{saved,setSaved,open}));
 }
 
 export default App;
