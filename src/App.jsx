@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from "react";
+import { PF, BFS } from "./pushfoldData.js";
 
 const h = React.createElement;
 const R="AKQJT98765432".split(""), RI={};R.forEach((r,i)=>RI[r]=i);
@@ -45,7 +46,7 @@ function Ranges({init,onSave}){
   h("div",{className:"stats"},
    h("div",null,h("div",{className:"big"},pct(share,0)),h("div",{className:"lbl"},isBB?"of hands defended":"of hands opened")),
    h("div",null,h("div",{className:"big"},[...set].length),h("div",{className:"lbl"},isBB?"hand types defended":"hand types raised"))),
-  h("p",{className:"note"},(isBB?"The big blind can’t open, since it acts last preflop, so this shows how to defend against a BTN open at "+st+"bb: "+(st===15?"":st<=50?"dark red = 3-bet all-in, ":"red = 3-bet, ")+"green = call. ":(st===15?"Dark red = open shove (all-in) when action folds to you, "+tbl+", 15bb. ":"Red = open-raise when action folds to you, "+tbl+", "+st+"bb. "))+"Typical open size is "+(st===15?"all-in":st===25?"2x":st===50?"2.2x":st===100?"2.5x":"2.5–3x")+". Pairs on the diagonal, suited above it, offsuit below. These are simplified solver-style charts: real solutions mix some hands at partial frequencies, which are rounded to raise or fold here."+(mode==="Tournament"?" Tournament charts add antes, so ranges are wider than cash. They do not model ICM pressure, which tightens play near pay jumps.":" Cash charts assume no ante.")+(tbl==="6-max"?" The 6-max UTG range is the 9-max LJ range; HJ, CO, BTN and SB are the same seats as at a 9-max table.":"")));
+  h("p",{className:"note"},(isBB?"The big blind can’t open, since it acts last preflop, so this shows how to defend against a BTN open at "+st+"bb: "+(st===15?"":st<=50?"dark red = 3-bet all-in, ":"red = 3-bet, ")+"green = call. ":(st===15?"Dark red = open shove (all-in) when action folds to you, "+tbl+", 15bb. ":"Red = open-raise when action folds to you, "+tbl+", "+st+"bb. "))+"Typical open size is "+(st===15?"all-in":st===25?"2x":st===50?"2.2x":st===100?"2.5x":"2.5–3x")+". Pairs on the diagonal, suited above it, offsuit below. These are simplified solver-style charts: real solutions mix some hands at partial frequencies, which are rounded to raise or fold here."+(mode==="Tournament"?" Tournament charts add antes, so ranges are wider than cash. They do not model ICM pressure; see the Push/fold tab for heads-up charts with a bubble factor.":" Cash charts assume no ante.")+(tbl==="6-max"?" The 6-max UTG range is the 9-max LJ range; HJ, CO, BTN and SB are the same seats as at a 9-max table.":"")));
 }
 
 function Calc(){
@@ -158,7 +159,7 @@ function Postflop({init,onSave}){
   h('p',{className:'note'},'Approximate solver trends for single-raised pots at 100bb, such as a CO open called by the BTN (raiser in position) or the reverse. Real frequencies depend on the exact board, hand and positions, so use these as a starting point.'));
 }
 
-const TAGS={ranges:'Open ranges',tree:'3-bet / 4-bet',post:'Postflop',combo:'Combos'};
+const TAGS={ranges:'Open ranges',tree:'3-bet / 4-bet',post:'Postflop',combo:'Combos',spr:'SPR',pf:'Push/fold'};
 function Saved({saved,setSaved,open}){
  const upd=(id,note)=>setSaved(saved.map(s=>s.id===id?{...s,note}:s));
  const del=id=>setSaved(saved.filter(s=>s.id!==id));
@@ -258,6 +259,54 @@ function Glossary(){
   list.length?list.map(([t,d])=>h('div',{key:t,className:'term'},h('b',null,t),h('p',null,d))):h('p',{className:'note'},'No terms match your search.'));
 }
 
+const decHex=hx=>{const s=new Set();ALL.forEach((x,i)=>{if((parseInt(hx[i>>2],16)>>(3-(i&3)))&1)s.add(x);});return s;};
+const BFL=['Chip EV (1.0)','Light ICM (1.2)','Bubble (1.5)','Heavy ICM (2.0)'];
+function PushFold({init,onSave}){
+ const [st,setSt]=useState(init?init.st:10),[bf,setBf]=useState(init?init.bf:0),[who,setWho]=useState(init?init.who:'SB shove');
+ const [sSet,cSet]=useMemo(()=>PF[st][bf].map(decHex),[st,bf]);
+ const isCall=who==='BB call',set=isCall?cSet:sSet,B=BFS[bf];
+ const share=s=>[...s].reduce((a,x)=>a+cm(x),0)/1326;
+ const need=(B*st-1)/(st*(1+B));
+ return h('div',{className:'panel'},
+  h('div',{className:'pos'},['SB shove','BB call'].map(x=>h('button',{key:x,className:'chipb','aria-pressed':x===who,onClick:()=>setWho(x)},x))),
+  h('label',{htmlFor:'pf-stack'},'Effective stack: '+st+'bb'),
+  h('input',{id:'pf-stack',type:'range',min:8,max:20,step:1,value:st,onChange:e=>setSt(+e.target.value)}),
+  h('div',{className:'lbl'},'Bubble factor'),
+  h('div',{className:'pos'},BFL.map((l,i)=>h('button',{key:l,className:'chipb','aria-pressed':i===bf,onClick:()=>setBf(i)},l))),
+  h('div',{className:'grid'},ALL.map(x=>h('div',{key:x,className:'cell'+(set.has(x)?(isCall?' call':' allin'):'')},x))),
+  h('div',{className:'legend'},[[isCall?'#2b8a3e':'#7a1018',isCall?'Call':'Shove (all-in)'],['var(--fold)','Fold']].map(([c,l])=>h('span',{key:l},h('i',{style:{background:c}}),l))),
+  h('div',{className:'stats'},
+   h('div',null,h('div',{className:'big'},pct(share(set),1)),h('div',{className:'lbl'},isCall?'of hands called':'of hands shoved')),
+   isCall?h('div',null,h('div',{className:'big'},pct(need,1)),h('div',{className:'lbl'},'equity needed to call')):h('div',null,h('div',{className:'big'},pct(1-share(cSet),1)),h('div',{className:'lbl'},'of hands BB folds'))),
+  h(SaveBar,{onSave:n=>onSave({type:'pf',title:'Push/fold: '+who+', '+st+'bb, BF '+B,params:{st,bf,who},note:n})}),
+  h('p',{className:'note'},'Heads-up Nash push/fold: SB either shoves or folds and BB either calls or folds, with no antes (SB posts 0.5bb, BB posts 1bb). The charts were solved with fictitious play from a simulated 169-by-169 hand equity table, so hands right at a cutoff can flip with small changes. The bubble factor is how much more losing chips costs than winning them gains, and here it applies to both players, like two short stacks near a pay jump. Equity needed to call = (BF \u00d7 stack \u2212 1) \u00f7 (stack \u00d7 (1 + BF)). Tables with more than two players need a multiway solver, so treat these as a guide there.'));
+}
+
+const SPRP=[['Single-raised',97.5,5.5],['3-bet pot',92,16.5],['4-bet pot',80,40.5]],STREETS=['Flop','Turn','River'];
+function Spr({init,onSave}){
+ const [stack,setStack]=useState(init?init.stack:97.5),[pot,setPot]=useState(init?init.pot:5.5),[from,setFrom]=useState(init?init.from:3);
+ const S=+stack||0,P=+pot||0,ok=S>0&&P>0,spr=ok?S/P:0,f=ok?(Math.pow(1+2*spr,1/from)-1)/2:0;
+ const rows=[];let p=P,s=S;
+ if(ok)for(let k=0;k<from;k++){const b=f*p;rows.push([STREETS[3-from+k],b,f*100,p,s-b]);p+=2*b;s-=b;}
+ const tip=spr<=3?'Low SPR: top pair and better can usually commit, and there is little room to maneuver or bluff.':spr<=8?'Medium SPR: overpairs, strong top pair and good draws can play for stacks, while marginal hands prefer smaller pots.':'High SPR: you need strong hands or strong draws to commit, so bets can start small and grow each street.';
+ const num=(id,l,v,fn)=>h('div',null,h('label',{htmlFor:id},l),h('input',{id,type:'number',min:0,step:'any',value:v,onChange:e=>fn(e.target.value)}));
+ return h('div',{className:'panel'},
+  h('div',{className:'pos'},SPRP.map(([l,a,b])=>h('button',{key:l,className:'chipb',onClick:()=>{setStack(a);setPot(b);setFrom(3);}},l+' (100bb)'))),
+  h('div',{className:'row'},num('spr-stack','Effective stack (bb)',stack,setStack),num('spr-pot','Pot (bb)',pot,setPot)),
+  h('div',{className:'lbl'},'Start betting on'),
+  h('div',{className:'pos'},[[3,'Flop'],[2,'Turn'],[1,'River']].map(([n,l])=>h('button',{key:n,className:'chipb','aria-pressed':n===from,onClick:()=>setFrom(n)},l+' ('+n+(n===1?' bet)':' bets)')))),
+  ok?h('div',null,
+   h('div',{className:'stats'},
+    h('div',null,h('div',{className:'big'},spr.toFixed(1)),h('div',{className:'lbl'},'SPR')),
+    h('div',null,h('div',{className:'big'},(f*100).toFixed(0)+'%'),h('div',{className:'lbl'},'pot per bet'+(f>1?' (overbet)':'')))),
+   h('div',{style:{overflowX:'auto',marginTop:12}},h('table',{className:'tbl'},
+    h('thead',null,h('tr',null,['Street','Bet','% pot','Pot before','Stack after'].map(t=>h('th',{key:t},t)))),
+    h('tbody',null,rows.map(r=>h('tr',{key:r[0]},h('td',null,r[0]),h('td',null,r[1].toFixed(1)),h('td',null,r[2].toFixed(0)+'%'),h('td',null,r[3].toFixed(1)),h('td',null,Math.max(0,r[4]).toFixed(1))))))),
+   h('p',{className:'note'},tip)):h('p',{className:'note'},'Enter a stack and a pot above zero.'),
+  h(SaveBar,{onSave:n=>onSave({type:'spr',title:'SPR '+spr.toFixed(1)+': '+S+'bb stack, '+P+'bb pot',params:{stack:S,pot:P,from},note:n})}),
+  h('p',{className:'note'},'A geometric plan bets the same fraction of the pot on every remaining street so the stack is all-in by the river. Each bet and call multiplies the pot by (1 + 2 \u00d7 fraction), so fraction = ((1 + 2 \u00d7 SPR)^(1 \u00f7 bets) \u2212 1) \u00f7 2. Solvers mix several sizes, so treat this as a baseline. Stack and pot are in big blinds; the presets assume a BTN open to 2.5bb, a 3-bet to 8bb and a 4-bet to 20bb.'));
+}
+
 function App(){
  const [tab,setTab]=useState('ranges'),[load,setLoad]=useState(null);
  const [saved,setSaved]=useState(()=>{try{return JSON.parse(localStorage.getItem('gto-saved')||'[]');}catch(e){return [];}});
@@ -265,13 +314,12 @@ function App(){
  const save=s=>setSaved([{...s,id:Date.now()+Math.random().toString(36).slice(2,6)},...saved]);
  const open=s=>{setLoad(s);setTab(s.type);};
  const init=load&&load.type===tab?load.params:null,key=tab+(init?load.id:''),pr={key,init,onSave:save};
- const T=[['ranges','Open ranges'],['tree','3-bet / 4-bet'],['post','Postflop'],['combo','Combos'],['math','Bet math'],['quiz','Practice'],['gloss','Glossary'],['saved','Saved ('+saved.length+')']];
+ const T=[['ranges','Open ranges'],['tree','3-bet / 4-bet'],['post','Postflop'],['combo','Combos'],['math','Bet math'],['spr','SPR'],['pf','Push/fold'],['quiz','Practice'],['gloss','Glossary'],['saved','Saved ('+saved.length+')']];
  return h('div',{className:'wrap'},
   h('h1',null,'GTO Poker ',h('span',null,'Coach')),
   h('p',{className:'sub'},'Study opening ranges, work out pot odds and defense frequencies, then test yourself.'),
   h('div',{className:'tabs',role:'tablist'},T.map(([k,l])=>h('button',{key:k,role:'tab',className:'tab','aria-selected':tab===k,onClick:()=>setTab(k)},l))),
-  tab==='ranges'?h(Ranges,pr):tab==='tree'?h(Tree,pr):tab==='post'?h(Postflop,pr):tab==='combo'?h(Combos,pr):tab==='math'?h(Calc):tab==='quiz'?h(Quiz):tab==='gloss'?h(Glossary):h(Saved,{saved,setSaved,open}));
+  tab==='ranges'?h(Ranges,pr):tab==='tree'?h(Tree,pr):tab==='post'?h(Postflop,pr):tab==='combo'?h(Combos,pr):tab==='spr'?h(Spr,pr):tab==='pf'?h(PushFold,pr):tab==='math'?h(Calc):tab==='quiz'?h(Quiz):tab==='gloss'?h(Glossary):h(Saved,{saved,setSaved,open}));
 }
 
 export default App;
-

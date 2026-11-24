@@ -77,4 +77,30 @@ textarea{resize:vertical}
 .dk.x{opacity:.3;cursor:default}
 .gl .term{border-top:1px solid var(--line);padding:10px 0}
 .gl .term b{display:block}
-.gl .term p{margin:2px 0 0;color:var(--mute)}
+.gl .term p{margin:2px 0 0;color:var(--mute)}input[type=range]{width:100%;accent-color:var(--accent);margin:2px 0 12px}
+.tbl{width:100%;border-collapse:collapse;font-size:.9rem}
+.tbl th,.tbl td{text-align:right;padding:6px 4px;border-top:1px solid var(--line)}
+.tbl th:first-child,.tbl td:first-child{text-align:left}
+.tbl th{color:var(--mute);font-weight:600;border-top:0}
+/* Button hover animations */
+.chipb,.tab,.btn,.act,.next,.opt,.dk{transition:transform .15s ease,background-color .15s ease,border-color .15s ease,color .15s ease,box-shadow .15s ease,filter .15s ease,opacity .15s ease}
+.dk{position:relative}
+@media (hover:hover){
+.chipb:hover{transform:translateY(-2px);border-color:var(--accent);box-shadow:0 4px 12px rgba(30,144,255,.28)}
+.chipb[aria-pressed="true"]:hover{filter:brightness(1.12)}
+.tab:hover{color:var(--ink);border-bottom-color:var(--line)}
+.tab[aria-selected="true"]:hover{border-bottom-color:var(--accent)}
+.btn:hover{transform:translateY(-2px);filter:brightness(1.12);box-shadow:0 4px 12px rgba(30,144,255,.3)}
+.btn.ghost:hover{filter:none;border-color:var(--accent);color:var(--accent)}
+.act:not(:disabled):hover{transform:translateY(-2px) scale(1.02);filter:brightness(1.12);box-shadow:0 6px 16px rgba(0,0,0,.35)}
+.act.f:not(:disabled):hover{background:var(--line);filter:none}
+.next:hover{background:var(--ink);color:var(--bg)}
+.opt:hover{background:var(--line);color:var(--ink)}
+.dk:not(:disabled):hover{transform:translateY(-3px) scale(1.1);z-index:1;border-color:var(--accent);box-shadow:0 4px 10px rgba(0,0,0,.4)}
+}
+.chipb:active,.btn:active,.dk:not(:disabled):active{transform:scale(.96)}
+.act:not(:disabled):active{transform:scale(.97)}
+@media (prefers-reduced-motion:reduce){
+.chipb,.tab,.btn,.act,.next,.opt,.dk{transition:none}
+.chipb:hover,.btn:hover,.act:hover,.dk:hover,.chipb:active,.btn:active,.act:active,.dk:active{transform:none!important}
+}
