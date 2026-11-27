@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { PF, BFS } from "./pushfoldData.js";
+import logo from "./assets/logo.png";
 
 const h = React.createElement;
 const R="AKQJT98765432".split(""), RI={};R.forEach((r,i)=>RI[r]=i);
@@ -501,12 +502,32 @@ function App(){
  const save=s=>setSaved([{...s,id:Date.now()+Math.random().toString(36).slice(2,6)},...saved]);
  const open=s=>{setLoad(s);setTab(s.type);};
  const init=load&&load.type===tab?load.params:null,key=tab+(init?load.id:''),pr={key,init,onSave:save};
- const T=[['ranges','Open ranges'],['tree','3-bet / 4-bet'],['post','Postflop'],['combo','Combos'],['math','Bet math'],['spr','SPR'],['pf','Push/fold'],['train','Trainer'],['quiz','Practice'],['gloss','Glossary'],['saved','Saved ('+saved.length+')']];
- return h('div',{className:'wrap'},
-  h('h1',null,'GTO Poker ',h('span',null,'Coach')),
-  h('p',{className:'sub'},'Study opening ranges, work out pot odds and defense frequencies, then test yourself.'),
-  h('div',{className:'tabs',role:'tablist'},T.map(([k,l])=>h('button',{key:k,role:'tab',className:'tab','aria-selected':tab===k,onClick:()=>setTab(k)},l))),
-  tab==='ranges'?h(Ranges,pr):tab==='tree'?h(Tree,pr):tab==='post'?h(Postflop,pr):tab==='combo'?h(Combos,pr):tab==='spr'?h(Spr,pr):tab==='pf'?h(PushFold,pr):tab==='train'?h(Trainer):tab==='math'?h(Calc):tab==='quiz'?h(Quiz):tab==='gloss'?h(Glossary):h(Saved,{saved,setSaved,open}));
+ const [menu,setMenu]=useState(null);
+ const NAV=[['Preflop',[['ranges','Open ranges'],['tree','3-bet / 4-bet'],['pf','Push/fold']]],['Postflop',[['post','Postflop basics'],['spr','SPR planner']]],['Train',[['train','Trainer'],['quiz','Practice']]],['Tools',[['combo','Combos'],['math','Bet math'],['gloss','Glossary']]]];
+ const LBL=Object.fromEntries(NAV.flatMap(g=>g[1]).concat([['saved','Saved spots']])),SAV='Saved ('+saved.length+')';
+ const go=k=>{setTab(k);setMenu(null);window.scrollTo(0,0);};
+ useEffect(()=>{
+  if(!menu)return;
+  const dn=e=>{if(!e.target.closest('.nav'))setMenu(null);},kd=e=>{if(e.key==='Escape')setMenu(null);};
+  document.addEventListener('pointerdown',dn);document.addEventListener('keydown',kd);
+  return()=>{document.removeEventListener('pointerdown',dn);document.removeEventListener('keydown',kd);};
+ },[menu]);
+ return h('div',null,
+  h('nav',{className:'nav','aria-label':'Main'},
+   h('div',{className:'navin'},
+    h('button',{className:'navbrand',onClick:()=>go('ranges'),'aria-label':'GTO Poker Coach, go to Open ranges'},h('img',{src:logo,alt:'',width:345,height:360}),h('span',null,'GTO Poker ',h('b',null,'Coach'))),
+    h('div',{className:'navlinks'},
+     NAV.map(([g,items])=>h('div',{key:g,className:'ngw'},
+      h('button',{className:'ng','aria-haspopup':'true','aria-expanded':menu===g,'aria-current':items.some(x=>x[0]===tab)?'true':undefined,onClick:()=>setMenu(menu===g?null:g)},g,h('i',{className:'car'})),
+      menu===g?h('div',{className:'drop',role:'menu'},items.map(([k,l])=>h('button',{key:k,role:'menuitem',className:'ni'+(tab===k?' on':''),'aria-current':tab===k?'page':undefined,onClick:()=>go(k)},l))):null)),
+     h('button',{className:'ng','aria-current':tab==='saved'?'page':undefined,onClick:()=>go('saved')},SAV)),
+    h('button',{className:'burger','aria-label':'Menu','aria-expanded':menu==='mobile','aria-controls':'mpanel',onClick:()=>setMenu(menu==='mobile'?null:'mobile')},h('span'),h('span'),h('span'))),
+   menu==='mobile'?h('div',{id:'mpanel',className:'mpanel'},
+    NAV.map(([g,items])=>h('div',{key:g},h('div',{className:'mh'},g),h('div',{className:'mgrid'},items.map(([k,l])=>h('button',{key:k,className:'mi'+(tab===k?' on':''),'aria-current':tab===k?'page':undefined,onClick:()=>go(k)},l))))),
+    h('div',{className:'mh'},'Saved'),h('div',{className:'mgrid'},h('button',{className:'mi'+(tab==='saved'?' on':''),'aria-current':tab==='saved'?'page':undefined,onClick:()=>go('saved')},SAV))):null),
+  h('main',{className:'wrap'},
+   h('h2',{className:'pt'},LBL[tab]),
+   tab==='ranges'?h(Ranges,pr):tab==='tree'?h(Tree,pr):tab==='post'?h(Postflop,pr):tab==='combo'?h(Combos,pr):tab==='spr'?h(Spr,pr):tab==='pf'?h(PushFold,pr):tab==='train'?h(Trainer):tab==='math'?h(Calc):tab==='quiz'?h(Quiz):tab==='gloss'?h(Glossary):h(Saved,{saved,setSaved,open})));
 }
 
 export default App;

@@ -124,3 +124,45 @@ button.ts{cursor:pointer}
 button.ts:hover{transform:translate(-50%,-50%) scale(1.1);border-color:var(--accent)}
 .chipb:disabled:hover{transform:none;box-shadow:none;border-color:var(--line)}
 }
+.brand{display:flex;align-items:center;gap:14px;margin-bottom:6px}
+.brand h1{margin:0;font-size:clamp(1.5rem,6.5vw,2rem);line-height:1.1}
+.logo{height:clamp(52px,15vw,76px);width:auto;max-width:30vw;flex:none;object-fit:contain;filter:drop-shadow(0 4px 14px rgba(110,90,230,.35))}
+
+/* Navbar */
+:root{padding-top:0}
+.nav{position:sticky;top:0;z-index:50;background:rgba(13,16,23,.92);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);border-bottom:1px solid var(--line);padding-top:env(safe-area-inset-top,0px)}
+.navin{max-width:1040px;margin:0 auto;padding:8px 16px;min-height:60px;display:flex;align-items:center;gap:12px}
+.navbrand{display:flex;align-items:center;gap:10px;margin-right:auto;background:none;border:0;padding:0;font:inherit;color:var(--ink);cursor:pointer;min-width:0}
+.navbrand img{height:42px;width:auto;flex:none;filter:drop-shadow(0 2px 8px rgba(110,90,230,.4))}
+.navbrand span{font-weight:800;font-size:1.05rem;letter-spacing:-.01em;white-space:nowrap}
+.navbrand b{color:var(--accent)}
+.navlinks{display:none}
+.burger{display:flex;flex-direction:column;justify-content:center;gap:5px;width:44px;height:44px;padding:0 11px;background:none;border:1.5px solid var(--line);border-radius:10px;cursor:pointer;flex:none}
+.burger span{display:block;height:2px;background:var(--ink);border-radius:2px;transition:transform .2s ease,opacity .2s ease}
+.burger[aria-expanded="true"] span:nth-child(1){transform:translateY(7px) rotate(45deg)}
+.burger[aria-expanded="true"] span:nth-child(2){opacity:0}
+.burger[aria-expanded="true"] span:nth-child(3){transform:translateY(-7px) rotate(-45deg)}
+.mpanel{max-height:calc(100vh - 68px);max-height:calc(100dvh - 68px);overflow-y:auto;border-top:1px solid var(--line);padding:4px 16px 18px;animation:drop .18s ease}
+.mh{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.09em;color:var(--mute);margin:14px 2px 6px}
+.mgrid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.mi{min-height:46px;font:inherit;font-weight:600;text-align:left;padding:8px 12px;border-radius:10px;border:1.5px solid var(--line);background:var(--panel);color:var(--ink);cursor:pointer;transition:background-color .15s ease,border-color .15s ease}
+.mi.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.pt{font-size:1.45rem;font-weight:800;letter-spacing:-.01em;margin:4px 0 14px}
+@keyframes drop{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+@media (min-width:860px){
+.burger,.mpanel{display:none}
+.navbrand{margin-right:24px}
+.navlinks{display:flex;align-items:center;gap:4px;margin-left:auto}
+.ngw{position:relative}
+.ng{display:flex;align-items:center;gap:6px;font:inherit;font-weight:600;padding:9px 13px;border-radius:9px;border:0;background:none;color:var(--mute);cursor:pointer;transition:background-color .15s ease,color .15s ease}
+.ng:hover,.ng[aria-expanded="true"]{background:var(--panel);color:var(--ink)}
+.ng[aria-current]{color:var(--ink);box-shadow:inset 0 -2px 0 var(--accent)}
+.car{width:6px;height:6px;border-right:2px solid currentColor;border-bottom:2px solid currentColor;transform:translateY(-2px) rotate(45deg);transition:transform .15s ease}
+.ng[aria-expanded="true"] .car{transform:translateY(1px) rotate(225deg)}
+.drop{position:absolute;top:calc(100% + 8px);left:0;min-width:210px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:6px;box-shadow:0 14px 34px rgba(0,0,0,.5);animation:drop .15s ease}
+.ni{display:block;width:100%;text-align:left;font:inherit;font-weight:600;padding:10px 12px;border-radius:8px;border:0;background:none;color:var(--ink);cursor:pointer;transition:background-color .12s ease}
+.ni:hover{background:var(--line)}
+.ni.on{background:var(--accent);color:#fff}
+}
+@media (max-width:359px){.navbrand span{font-size:.95rem}.mgrid{grid-template-columns:1fr}}
+@media (prefers-reduced-motion:reduce){.mpanel,.drop{animation:none}.burger span,.car{transition:none}}
