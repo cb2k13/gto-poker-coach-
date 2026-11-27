@@ -104,3 +104,23 @@ textarea{resize:vertical}
 .chipb,.tab,.btn,.act,.next,.opt,.dk{transition:none}
 .chipb:hover,.btn:hover,.act:hover,.dk:hover,.chipb:active,.btn:active,.act:active,.dk:active{transform:none!important}
 }
+.felt{position:relative;aspect-ratio:2/1;max-width:580px;margin:6px auto 18px}
+.rail{position:absolute;inset:14% 7%;border:2px solid var(--line);border-radius:999px}
+.fboard{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);display:flex;gap:4px}
+.bc{width:clamp(22px,5.5vw,34px);aspect-ratio:3/4;border-radius:4px;background:var(--fold);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:clamp(.55rem,2vw,.8rem);color:var(--ink)}
+.bc.r{color:#f0605d}
+.ts{position:absolute;transform:translate(-50%,-50%);width:clamp(42px,11vw,62px);aspect-ratio:1;border-radius:50%;background:var(--panel);border:2px solid var(--line);display:flex;flex-direction:column;align-items:center;justify-content:center;font:inherit;font-weight:800;font-size:clamp(.55rem,2.2vw,.8rem);color:var(--ink);padding:0;line-height:1.1;transition:transform .15s ease,border-color .15s ease,box-shadow .15s ease,opacity .15s ease}
+.ts small{font-weight:600;font-size:.62em;color:var(--mute)}
+.ts.sel{border-color:var(--accent);box-shadow:0 0 0 3px rgba(30,144,255,.3)}
+.ts.hero{border-color:var(--accent);background:var(--accent);color:#fff}
+.ts.hero small{color:#dbeafe}
+.ts.fold{opacity:.45}
+button.ts{cursor:pointer}
+.dealer{position:absolute;transform:translate(-50%,-50%);width:18px;height:18px;border-radius:50%;background:var(--ink);color:var(--bg);font-size:.6rem;font-weight:800;display:flex;align-items:center;justify-content:center}
+.btn.big{display:block;width:100%;margin-top:16px;padding:12px 24px;font-size:1.05rem}
+.act.cl{background:#2b8a3e}
+.chipb:disabled{opacity:.4;cursor:default}
+@media (hover:hover){
+button.ts:hover{transform:translate(-50%,-50%) scale(1.1);border-color:var(--accent)}
+.chipb:disabled:hover{transform:none;box-shadow:none;border-color:var(--line)}
+}

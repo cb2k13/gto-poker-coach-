@@ -307,6 +307,193 @@ function Spr({init,onSave}){
   h('p',{className:'note'},'A geometric plan bets the same fraction of the pot on every remaining street so the stack is all-in by the river. Each bet and call multiplies the pot by (1 + 2 \u00d7 fraction), so fraction = ((1 + 2 \u00d7 SPR)^(1 \u00f7 bets) \u2212 1) \u00f7 2. Solvers mix several sizes, so treat this as a baseline. Stack and pot are in big blinds; the presets assume a BTN open to 2.5bb, a 3-bet to 8bb and a 4-bet to 20bb.'));
 }
 
+function evalPack(mask,n){let v=0,k=n;for(let r=12;r>=0&&k>0;r--)if((mask>>r)&1){v=v*16+r;k--;}while(k-->0)v*=16;return v;}
+function strHi(m){const x=(m<<1)|((m>>12)&1);for(let q=13;q>=4;q--)if(((x>>(q-4))&31)===31)return q-1;return -1;}
+function eval7(c){
+ const rc=new Array(13).fill(0),sm=[0,0,0,0],sc=[0,0,0,0];let rm=0;
+ for(const k of c){const r=k>>2,u=k&3;rc[r]++;sm[u]|=1<<r;sc[u]++;rm|=1<<r;}
+ for(let u=0;u<4;u++)if(sc[u]>=5){const q=strHi(sm[u]);if(q>=0)return (8<<20)|q;}
+ let q4=-1,t=-1,t2=-1,p1=-1,p2=-1;
+ for(let r=12;r>=0;r--){if(rc[r]===4){if(q4<0)q4=r;}else if(rc[r]===3){if(t<0)t=r;else if(t2<0)t2=r;}else if(rc[r]===2){if(p1<0)p1=r;else if(p2<0)p2=r;}}
+ if(q4>=0)return (7<<20)|(q4<<16)|evalPack(rm&~(1<<q4),1);
+ if(t>=0&&(t2>=0||p1>=0))return (6<<20)|(t<<16)|(Math.max(t2,p1)<<12);
+ for(let u=0;u<4;u++)if(sc[u]>=5)return (5<<20)|evalPack(sm[u],5);
+ const q=strHi(rm);if(q>=0)return (4<<20)|q;
+ if(t>=0)return (3<<20)|(t<<16)|evalPack(rm&~(1<<t),2);
+ if(p1>=0&&p2>=0)return (2<<20)|(p1<<16)|(p2<<12)|evalPack(rm&~(1<<p1)&~(1<<p2),1);
+ if(p1>=0)return (1<<20)|(p1<<16)|evalPack(rm&~(1<<p1),3);
+ return evalPack(rm,5);
+}
+const cardN=k=>(12-RI[k[0]])*4+SUITS.indexOf(k[1]);
+const DECK=[];R.forEach(r=>SUITS.forEach(s=>DECK.push(r+s)));
+const rnd=n=>Math.floor(Math.random()*n),pickOf=a=>a[rnd(a.length)];
+function wpick(l,wf){let r=Math.random()*l.reduce((t,x)=>t+wf(x),0);for(const x of l){r-=wf(x);if(r<=0)return x;}return l[l.length-1];}
+const dealC=(x,dead)=>{const l=COMBOS[x].filter(cc=>!cc.some(k=>dead.includes(k)));return pickOf(l.length?l:COMBOS[x]);};
+function runout(hc,ox,seat){
+ const oc=dealC(ox,hc),dead=new Set(hc.concat(oc)),rest=DECK.filter(k=>!dead.has(k));
+ const ev=(a,b)=>eval7(a.concat(b).map(cardN));
+ const draw=()=>{const a=rest.slice();for(let i=0;i<5;i++){const j=i+rnd(a.length-i);[a[i],a[j]]=[a[j],a[i]];}return a.slice(0,5);};
+ let w=0;const N=400;
+ for(let i=0;i<N;i++){const b=draw(),x=ev(hc,b),y=ev(oc,b);w+=x>y?1:x===y?.5:0;}
+ const board=draw(),x=ev(hc,board),y=ev(oc,board);
+ return {oc,board,seat,res:x>y?'win':x<y?'lose':'tie',eq:w/N};
+}
+
+const TK=[['open','Open'],['vsopen','Vs open'],['vs3','Vs 3-bet'],['vs4','Vs 4-bet']],KL={open:'Open (RFI)',vsopen:'Facing an open',vs3:'Facing a 3-bet',vs4:'Facing a 4-bet'};
+const seatsOf=t=>(t==='6-max'?P6:POS).concat('BB'),ck=(t,s)=>t==='6-max'?(MAP6[s]||s):s;
+const openSet=(cfg,s)=>{const key=ck(cfg.tbl,s),b=RANGES[cfg.st][key];return cfg.mode==='Tournament'?wide(b,ANTE[key]):b;};
+const openSz=(cfg,s)=>cfg.st===15?'all-in':s==='SB'?'3':cfg.st===25?'2':cfg.st===50?'2.2':'2.5';
+const callsShove=x=>ORD.indexOf(x)<=9;
+function makeNode(cfg){
+ const S=seatsOf(cfg.tbl),can=cfg.st===100;
+ let ks=(cfg.kinds.length?cfg.kinds:['open','vsopen','vs3','vs4']).filter(k=>k==='open'||can);
+ if(!ks.length)ks=['open'];
+ const pool=cfg.seats.length?cfg.seats:S;
+ for(let t=0;t<80;t++){
+  const kind=pickOf(ks),hero=pickOf(pool),i=S.indexOf(hero),hk=ck(cfg.tbl,hero);
+  if(kind==='open'){
+   if(hero==='BB')continue;
+   const set=openSet(cfg,hero),hand=Math.random()<.5?pickOf([...set]):pickOf(ALL);
+   return {kind,hero,hand,gto:set.has(hand)?'raise':'fold'};
+  }
+  if(kind==='vsopen'){
+   if(i<1)continue;
+   const o=pickOf(S.slice(0,i)),m=solve(ck(cfg.tbl,o),hk,0).m,cl=pickOf(['r','c','f']),pl=ALL.filter(x=>cl==='f'?!m[x]:m[x]===cl);
+   if(!pl.length)continue;
+   const hand=pickOf(pl);
+   return {kind,hero,opener:o,hand,gto:{r:'raise',c:'call'}[m[hand]]||'fold'};
+  }
+  if(kind==='vs3'){
+   if(hero==='BB'||i>=S.length-1)continue;
+   const d=pickOf(S.slice(i+1)),dk=ck(cfg.tbl,d),m=solve(hk,dk,1).m,hand=pickOf([...RANGES[100][hk]]);
+   return {kind,hero,def:d,hand,oppHand:pickOf(solve(hk,dk,2).pool),gto:{a:'allin',r:'raise',c:'call'}[m[hand]]||'fold'};
+  }
+  if(i<1)continue;
+  const o=pickOf(S.slice(0,i)),ok=ck(cfg.tbl,o),s1=solve(ok,hk,1).m,s2=solve(ok,hk,2),op=[...RANGES[100][ok]].filter(x=>s1[x]==='r');
+  if(!op.length)continue;
+  const hand=pickOf(s2.pool);
+  return {kind:'vs4',hero,opener:o,hand,oppHand:pickOf(op),gto:{a:'allin',c:'call'}[s2.m[hand]]||'fold'};
+ }
+ return {kind:'open',hero:'BTN',hand:'AA',gto:'raise'};
+}
+function actsOf(n,cfg){
+ const S=seatsOf(cfg.tbl),a={},hi=S.indexOf(n.hero),so=s=>'Raise '+openSz(cfg,s),s3=s=>SZ3[ck(cfg.tbl,s)];
+ if(n.kind==='open')S.slice(0,hi).forEach(s=>a[s]='Fold');
+ else if(n.kind==='vsopen'){const oi=S.indexOf(n.opener);S.slice(0,oi).forEach(s=>a[s]='Fold');a[n.opener]=so(n.opener);S.slice(oi+1,hi).forEach(s=>a[s]='Fold');}
+ else if(n.kind==='vs3'){S.slice(0,hi).forEach(s=>a[s]='Fold');a[n.hero]=so(n.hero);S.slice(hi+1,S.indexOf(n.def)).forEach(s=>a[s]='Fold');a[n.def]='3-bet '+s3(n.def);}
+ else{const oi=S.indexOf(n.opener);S.slice(0,oi).forEach(s=>a[s]='Fold');S.slice(oi+1,hi).forEach(s=>a[s]='Fold');a[n.opener]='4-bet 22';a[n.hero]='3-bet '+s3(n.hero);}
+ return a;
+}
+function storyOf(n,cfg){
+ const s3=s=>SZ3[ck(cfg.tbl,s)];
+ if(n.kind==='open')return 'Folded to you on the '+n.hero+'.';
+ if(n.kind==='vsopen')return n.opener+' raises to '+openSz(cfg,n.opener)+'. Action is on you on the '+n.hero+'.';
+ if(n.kind==='vs3')return 'You opened to '+openSz(cfg,n.hero)+' from the '+n.hero+'. '+n.def+' 3-bets to '+s3(n.def)+'.';
+ return n.opener+' opened, you 3-bet to '+s3(n.hero)+' from the '+n.hero+', and '+n.opener+' 4-bets to 22.';
+}
+function optsOf(n,cfg){
+ const f=['fold','Fold'],c=['call','Call'],a=['allin','All-in 100'];
+ if(n.kind==='open')return [f,['raise',cfg.st===15?'All-in 15':'Raise '+openSz(cfg,n.hero)]];
+ if(n.kind==='vsopen')return [f,c,['raise','Raise '+SZ3[ck(cfg.tbl,n.hero)]],a];
+ if(n.kind==='vs3')return [f,c,['raise','Raise 22'],a];
+ return [f,c,a];
+}
+function respOpen(cfg,hero,s){
+ if(cfg.st===100){const m=solve(ck(cfg.tbl,hero),ck(cfg.tbl,s),0).m,x=wpick(ALL,cm);return {hand:x,act:{r:'3bet',c:'call'}[m[x]]||'fold'};}
+ if(s!=='BB')return {act:'fold'};
+ const b=BBR[cfg.st],x=wpick(ALL,cm);
+ return {hand:x,act:b.b3.has(x)?'3bet':b.def.has(x)?'call':'fold'};
+}
+function resolve(n,a,cfg,cards){
+ const S=seatsOf(cfg.tbl),hi=S.indexOf(n.hero),fl='The flop comes next (postflop is not simulated yet).';
+ const end=t=>({lines:[t],next:null}),sd=(oh,seat,t)=>({lines:[t],next:null,sd:runout(cards,oh,seat)});
+ if(a==='fold')return end('You fold.');
+ if(n.kind==='open'){
+  for(const s of S.slice(hi+1)){
+   const r=respOpen(cfg,n.hero,s);if(r.act==='fold')continue;
+   if(r.act==='call')return cfg.st===15?sd(r.hand,s,s+' calls your all-in.'):end(s+' calls. '+fl);
+   if(cfg.st!==100)return end(s+(cfg.st<=50?' shoves all-in. ':' 3-bets. ')+'The charts for facing it exist at 100bb only, so the hand ends here.');
+   const m=solve(ck(cfg.tbl,n.hero),ck(cfg.tbl,s),1).m;
+   return {lines:[s+' 3-bets to '+SZ3[ck(cfg.tbl,s)]+'.'],next:{kind:'vs3',hero:n.hero,def:s,hand:n.hand,oppHand:r.hand,gto:{a:'allin',r:'raise',c:'call'}[m[n.hand]]||'fold'}};
+  }
+  return end('Everyone folds. You win the blinds.');
+ }
+ if(n.kind==='vsopen'){
+  if(a==='call')return end('You call. '+fl);
+  const ok=ck(cfg.tbl,n.opener),hk=ck(cfg.tbl,n.hero),oh=wpick([...RANGES[100][ok]],cm);
+  if(a==='allin')return callsShove(oh)?sd(oh,n.opener,n.opener+' calls your all-in.'):end(n.opener+' folds. You win the pot.');
+  const oc=solve(ok,hk,1).m[oh];
+  if(oc==='a')return callsShove(n.hand)?sd(oh,n.opener,n.opener+' shoves over your 3-bet and you call.'):end(n.opener+' shoves over your 3-bet and you fold.');
+  if(oc==='r')return {lines:[n.opener+' 4-bets to 22.'],next:{kind:'vs4',hero:n.hero,opener:n.opener,hand:n.hand,oppHand:oh,gto:{a:'allin',c:'call'}[solve(ok,hk,2).m[n.hand]]||'fold'}};
+  if(oc==='c')return end(n.opener+' calls your 3-bet. '+fl);
+  return end(n.opener+' folds. You win the pot.');
+ }
+ if(n.kind==='vs3'){
+  if(a==='call')return end('You call. '+fl);
+  if(a==='allin')return callsShove(n.oppHand)?sd(n.oppHand,n.def,n.def+' calls your all-in.'):end(n.def+' folds. You win the pot.');
+  const oc=solve(ck(cfg.tbl,n.hero),ck(cfg.tbl,n.def),2).m[n.oppHand];
+  if(oc==='a')return callsShove(n.hand)?sd(n.oppHand,n.def,n.def+' 5-bets all-in and you call.'):end(n.def+' 5-bets all-in and you fold.');
+  if(oc==='c')return end(n.def+' calls your 4-bet. '+fl);
+  return end(n.def+' folds. You win the pot.');
+ }
+ if(a==='call')return end('You call. '+fl);
+ return callsShove(n.oppHand)?sd(n.oppHand,n.opener,n.opener+' calls your all-in.'):end(n.opener+' folds. You win the pot.');
+}
+
+function Felt({seats,hero,sel,acts,board,onSeat}){
+ const N=seats.length,pt=i=>{const th=(120+i*360/N)*Math.PI/180;return [50+43*Math.cos(th),50+40*Math.sin(th)];},bi=seats.indexOf('BTN'),[bx,by]=pt(bi);
+ return h('div',{className:'felt'},h('div',{className:'rail'}),
+  h('div',{className:'fboard'},[0,1,2,3,4].map(i=>board&&board[i]?h('span',{key:i,className:'bc'+(/[hd]/.test(board[i][1])?' r':'')},fmt(board[i])):h('span',{key:i,className:'bc'}))),
+  seats.map((s,i)=>{const [x,y]=pt(i),a=acts&&acts[s],on=!!(sel&&sel.includes(s)),cl='ts'+(s===hero?' hero':'')+(on?' sel':'')+(a==='Fold'?' fold':''),st={left:x+'%',top:y+'%'};
+   return onSeat?h('button',{key:s,className:cl,style:st,'aria-pressed':on,onClick:()=>onSeat(s)},s,a?h('small',null,a):null):h('div',{key:s,className:cl,style:st},s,a?h('small',null,a):null);}),
+  h('span',{className:'dealer',style:{left:(bx+(50-bx)*.28)+'%',top:(by+(50-by)*.28)+'%'}},'D'));
+}
+
+const ACT={fold:'folds',call:'calls',raise:'raises',allin:'goes all-in'};
+function Trainer(){
+ const [ph,setPh]=useState('setup'),[cfg,setCfg]=useState({mode:'Cash',tbl:'6-max',st:100,kinds:[],seats:[],n:10,fb:'each'});
+ const [log,setLog]=useState([]),[idx,setIdx]=useState(1),[hd,setHd]=useState(null);
+ const S=seatsOf(cfg.tbl),up=(k,v)=>setCfg({...cfg,[k]:v,...(k==='tbl'?{seats:[]}:{})});
+ const mk=()=>{const node=makeNode(cfg);return {node,last:node,cards:dealC(node.hand,[]),lines:[],fbk:null,sd:null};};
+ const begin=()=>{setLog([]);setIdx(1);setHd(mk());setPh('play');};
+ const decide=a=>{const n=hd.node,ok=a===n.gto,r=resolve(n,a,cfg,hd.cards);
+  setLog(log.concat([{kind:n.kind,hero:n.hero,hand:n.hand,pick:a,gto:n.gto,ok}]));
+  setHd({...hd,node:r.next,last:r.next||n,lines:r.lines,fbk:{ok,gto:n.gto,hand:n.hand},sd:r.sd||null});};
+ const next=()=>{if(idx>=cfg.n)setPh('done');else{setIdx(idx+1);setHd(mk());}};
+ const chips=(a,on,fn,dis)=>h('div',{className:'pos'},a.map(([k,l])=>h('button',{key:k,className:'chipb','aria-pressed':on(k),disabled:!!(dis&&dis(k)),onClick:()=>fn(k)},l)));
+ if(ph==='setup')return h('div',{className:'panel'},
+  h(Felt,{seats:S,sel:cfg.seats,onSeat:s=>up('seats',cfg.seats.includes(s)?cfg.seats.filter(x=>x!==s):cfg.seats.concat(s))}),
+  h('p',{className:'note',style:{textAlign:'center',marginTop:0}},'Tap seats to choose where you sit. None selected means any seat.'),
+  h('div',{className:'lbl'},'Game'),chips([['Cash','Cash'],['Tournament','Tournament']],k=>k===cfg.mode,k=>up('mode',k)),
+  h('div',{className:'lbl'},'Table'),chips([['6-max','6-max'],['9-max','9-max']],k=>k===cfg.tbl,k=>up('tbl',k)),
+  h('div',{className:'lbl'},'Stack'),chips(STACKS.map(s=>[s,s+'bb']),k=>k===cfg.st,k=>up('st',k)),
+  h('div',{className:'lbl'},'Decision'),chips([['any','Any']].concat(TK),k=>k==='any'?!cfg.kinds.length:cfg.kinds.includes(k),k=>up('kinds',k==='any'?[]:cfg.kinds.includes(k)?cfg.kinds.filter(x=>x!==k):cfg.kinds.concat(k)),k=>cfg.st!==100&&k!=='any'&&k!=='open'),
+  h('div',{className:'lbl'},'Hands per session'),chips([10,25,50].map(n=>[n,String(n)]),k=>k===cfg.n,k=>up('n',k)),
+  h('div',{className:'lbl'},'Feedback'),chips([['each','After each hand'],['end','At the end']],k=>k===cfg.fb,k=>up('fb',k)),
+  h('button',{className:'btn big',onClick:begin},'Start training'),
+  h('p',{className:'note'},'You play preflop against opponents that follow this app\u2019s chart approximations, not solver output. Spots facing a raise use the 100bb charts, so other stacks practice opening only. Follow-up reactions to all-ins are simple assumptions and are not scored. Postflop is not simulated yet.'));
+ if(ph==='done'){
+  const tot=log.length,ok=log.filter(x=>x.ok).length,by={};log.forEach(x=>{by[x.kind]=by[x.kind]||[0,0];by[x.kind][1]++;if(x.ok)by[x.kind][0]++;});
+  const miss=log.filter(x=>!x.ok).slice(0,12);
+  return h('div',{className:'panel'},
+   h('div',{className:'stats'},h('div',null,h('div',{className:'big'},tot?Math.round(ok/tot*100)+'%':'\u2013'),h('div',{className:'lbl'},'accuracy')),h('div',null,h('div',{className:'big'},ok+' / '+tot),h('div',{className:'lbl'},'decisions correct'))),
+   tot?h('table',{className:'tbl',style:{marginTop:12}},h('thead',null,h('tr',null,['Spot','Correct','Total'].map(t=>h('th',{key:t},t)))),h('tbody',null,Object.keys(by).map(k=>h('tr',{key:k},h('td',null,KL[k]),h('td',null,by[k][0]),h('td',null,by[k][1]))))):null,
+   miss.length?h('div',null,h('div',{className:'lbl',style:{marginTop:14}},'Mistakes'),h('ul',{className:'tips'},miss.map((x,i)=>h('li',{key:i},x.hand+' on the '+x.hero+' ('+KL[x.kind]+'): you chose '+x.pick+', the chart '+ACT[x.gto]+'.')))):null,
+   h('div',{className:'spotbtns'},h('button',{className:'btn',onClick:begin},'Train again'),h('button',{className:'btn ghost',onClick:()=>setPh('setup')},'Change settings')),
+   h('p',{className:'note'},'Accuracy compares your choices to this app\u2019s approximate charts.'));
+ }
+ const n=hd.node,sdv=hd.sd,acts=actsOf(hd.last,cfg),show=cfg.fb==='each'&&hd.fbk,okc=log.filter(x=>x.ok).length;
+ return h('div',{className:'panel'},
+  h('div',{className:'score'},h('span',null,'Hand '+idx+' / '+cfg.n),h('span',null,cfg.fb==='each'?okc+' / '+log.length+' correct':'Feedback at the end')),
+  h(Felt,{seats:S,hero:hd.last.hero,acts,board:sdv?sdv.board:null}),
+  h('div',{className:'boards',style:{justifyContent:'center'}},h('div',{className:'board'},hd.cards.map(k=>h('span',{key:k,className:'pc'+(/[hd]/.test(k[1])?' r':'')},fmt(k))))),
+  h('p',{className:'where'},hd.lines.length?hd.lines.join(' '):storyOf(n,cfg)),
+  show?h('div',{className:'fb'+(hd.fbk.ok?'':' bad'),role:'status'},h('strong',null,hd.fbk.ok?'Correct. ':'Not quite. '),'The chart '+ACT[hd.fbk.gto]+' with '+hd.fbk.hand+' here.'):null,
+  sdv?h('p',{className:'note'},'Opponent ('+sdv.seat+') shows '+sdv.oc.map(fmt).join(' ')+'. '+(sdv.res==='win'?'You win':sdv.res==='lose'?'You lose':'You split')+' the pot. Your equity before the board was about '+Math.round(sdv.eq*100)+'%.'):null,
+  n?h('div',{className:'acts',style:{gridTemplateColumns:'repeat('+Math.min(optsOf(n,cfg).length,2)+',1fr)',marginTop:12}},optsOf(n,cfg).map(([k,l])=>h('button',{key:k,className:'act'+(k==='fold'?' f':k==='call'?' cl':''),onClick:()=>decide(k)},l)))
+   :h('div',{className:'spotbtns'},h('button',{className:'btn',onClick:next},idx>=cfg.n?'See results':'Next hand'),h('button',{className:'btn ghost',onClick:()=>setPh('done')},'End session')));
+}
+
 function App(){
  const [tab,setTab]=useState('ranges'),[load,setLoad]=useState(null);
  const [saved,setSaved]=useState(()=>{try{return JSON.parse(localStorage.getItem('gto-saved')||'[]');}catch(e){return [];}});
@@ -314,12 +501,12 @@ function App(){
  const save=s=>setSaved([{...s,id:Date.now()+Math.random().toString(36).slice(2,6)},...saved]);
  const open=s=>{setLoad(s);setTab(s.type);};
  const init=load&&load.type===tab?load.params:null,key=tab+(init?load.id:''),pr={key,init,onSave:save};
- const T=[['ranges','Open ranges'],['tree','3-bet / 4-bet'],['post','Postflop'],['combo','Combos'],['math','Bet math'],['spr','SPR'],['pf','Push/fold'],['quiz','Practice'],['gloss','Glossary'],['saved','Saved ('+saved.length+')']];
+ const T=[['ranges','Open ranges'],['tree','3-bet / 4-bet'],['post','Postflop'],['combo','Combos'],['math','Bet math'],['spr','SPR'],['pf','Push/fold'],['train','Trainer'],['quiz','Practice'],['gloss','Glossary'],['saved','Saved ('+saved.length+')']];
  return h('div',{className:'wrap'},
   h('h1',null,'GTO Poker ',h('span',null,'Coach')),
   h('p',{className:'sub'},'Study opening ranges, work out pot odds and defense frequencies, then test yourself.'),
   h('div',{className:'tabs',role:'tablist'},T.map(([k,l])=>h('button',{key:k,role:'tab',className:'tab','aria-selected':tab===k,onClick:()=>setTab(k)},l))),
-  tab==='ranges'?h(Ranges,pr):tab==='tree'?h(Tree,pr):tab==='post'?h(Postflop,pr):tab==='combo'?h(Combos,pr):tab==='spr'?h(Spr,pr):tab==='pf'?h(PushFold,pr):tab==='math'?h(Calc):tab==='quiz'?h(Quiz):tab==='gloss'?h(Glossary):h(Saved,{saved,setSaved,open}));
+  tab==='ranges'?h(Ranges,pr):tab==='tree'?h(Tree,pr):tab==='post'?h(Postflop,pr):tab==='combo'?h(Combos,pr):tab==='spr'?h(Spr,pr):tab==='pf'?h(PushFold,pr):tab==='train'?h(Trainer):tab==='math'?h(Calc):tab==='quiz'?h(Quiz):tab==='gloss'?h(Glossary):h(Saved,{saved,setSaved,open}));
 }
 
 export default App;
